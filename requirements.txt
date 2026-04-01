@@ -5,3 +5,4 @@ selenium
 rsa
 bs4
 pywin32
+Jinja2
