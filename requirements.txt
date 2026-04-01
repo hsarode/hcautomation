@@ -1,0 +1,7 @@
+setuptools
+pandas
+numpy
+selenium
+rsa
+bs4
+pywin32
