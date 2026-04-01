@@ -1,1 +1,1 @@
-from .helpers import ERDownloader, Helpers
+from .helpers import ERDownloader, Helpers, FilterSpec
