@@ -11,6 +11,7 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 
+import sys
 import rsa
 import pandas as pd
 import numpy as np
@@ -125,57 +126,103 @@ class ERDownloader:
             )
         except TimeoutException:
             raise LoginTimeoutError("Timed out trying to wait ER to load post login") from None
+    
+    def _click(self, by, value, timeout):
+        WebDriverWait(self.driver, timeout).until(
+            EC.element_to_be_clickable((by, value))
+        ).click()
 
-    def _find_existing_bookmarks(self, timeout=20):
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            elements = self.driver.find_elements(By.CLASS_NAME, "CatalogActionLink")
-            element_text = [elem.text for elem in elements]
-            if elements:
-                return elements, element_text
-            time.sleep(1)
-        raise BookmarkNotFoundError("Timed out waiting for bookmark/action links to load")
+    def _click_catalog_action_link(self, parent, action):
+        if action == 'Find':
+            return False
+        for link in parent.find_elements(By.CLASS_NAME, 'CatalogActionLink'):
+            if link.text.strip() == action:
+                link.click()
+                return True
+        return False
 
-    def _click_more_on_bookmark(self, bookmark, concept, user, direct_export=True, timeout=20):
-        elements, element_text = self._find_existing_bookmarks()
-        bookmark_present_status = bookmark in element_text
+    # def _decide_action_on_bookmark(self, bookmark, action, on_catalog_page=False):
+    #     wait = WebDriverWait(self.driver, 20)
+    #     def _get_bookmark(driv):
+    #         for bookmark_row in driv.find_elements(By.CLASS_NAME, 'ListItem'):
+    #             if on_catalog_page:
+    #                 try:
+    #                     bookmark_title = bookmark_row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
+    #                 except NoSuchElementException:
+    #                     continue
+    #             else:
+    #                 bookmark_title = bookmark_row.text.strip().split('\n')[0]
+    #             if bookmark == bookmark_title:
+    #                 if action == 'Find':
+    #                     return True
+    #                 return self._click_catalog_action_link(bookmark_row, action)
+    #     try:
+    #         return wait.until(_get_bookmark)
+    #     except TimeoutException:
+    #         if action == 'Find':
+    #             return False
+    #         raise
 
-        if bookmark_present_status:
-            deadline = time.time() + timeout
-            while time.time() < deadline:
+    def _decide_action_on_bookmark(self, bookmark, action, on_catalog_page=False, timeout=20):
+        end_time = time.time() + timeout
+        wait_time_done = False
+        while time.time() < end_time and not wait_time_done:
+            for bookmark_row in self.driver.find_elements(By.CLASS_NAME, 'ListItem'):
+                if 'Analysis and Interactive Reporting' in bookmark_row.text:
+                    wait_time_done = True
+
+        for bookmark_row in self.driver.find_elements(By.CLASS_NAME, 'ListItem'):
+            if on_catalog_page:
                 try:
-                    elements[element_text.index(bookmark) + 3].click()
-                    break
-                except Exception:
-                    elements = self.driver.find_elements(By.CLASS_NAME, "CatalogActionLink")
-                    element_text = [elem.text for elem in elements]
-                    time.sleep(1)
+                    bookmark_title = bookmark_row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
+                except NoSuchElementException:
+                    continue
             else:
-                raise BookmarkNotFoundError(f"Unable to click More for bookmark: {bookmark}")
+                bookmark_title = bookmark_row.text.strip().split('\n')[0]
+            if bookmark == bookmark_title:
+                if action == 'Find':
+                    return True
+                return self._click_catalog_action_link(bookmark_row, action)
+        return False
+
+    def _navigate_catalog(self, bookmark, action, timeout):
+        wait = WebDriverWait(self.driver, timeout)
+        def _click(driv):
+            try:
+                for row in driv.find_elements(By.CSS_SELECTOR, '.ListItem.masterAccordionBottomContentAreaPanel.CatalogListVerboseCell'):
+                    title = row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
+                    if title == bookmark:
+                        return self._click_catalog_action_link(row, action)
+                return False
+            except StaleElementReferenceException:
+                return False
+        wait.until(_click)
+
+    def _call_action_on_bookmark_and_export(self, bookmark, export_format, user, filter_spec, num_filters, timeout):
+        bookmark_present_status = self._decide_action_on_bookmark(bookmark, 'Find')
+        if not bookmark_present_status:
+            self.driver.find_element(By.ID, 'catalog').click()
+            catalog_location = self.driver.find_element(By.CLASS_NAME, 'XUIPromptEntry').text.strip() == '/Shared Folders/Concepts/Home Center/Omkar'
+            if not catalog_location:
+                self._navigate_catalog('Concepts', 'Expand')
+                self._navigate_catalog('Home Center', 'Expand')
+                self._navigate_catalog(user, 'Expand')
+
+        if filter_spec:
+            self._decide_action_on_bookmark(bookmark, 'Edit', not bookmark_present_status)
+            self._click(By.ID, "criteriaTab_tab", timeout)
+            self._edit_filter(filter_spec, num_filters)
+            self._click(By.ID, "resultsTab_tab", timeout)
+            self._click(By.ID, "idAnswersCompoundViewToolbar_export_image", timeout)
+            self._click(By.NAME, "exportData", timeout)
+            export_name = export_format if export_format == "csv" else "excel_data"
+            self._click(By.NAME, export_name, timeout)
         else:
-            wait = WebDriverWait(self.driver, 20)
-
-            wait.until(
-                EC.element_to_be_clickable(
-                    (
-                        By.XPATH,
-                        "//span[contains(@class,'HeaderMenuBarText') and contains(@class,'HeaderMenuNavBarText') and normalize-space()='Catalog']"
-                    )
-                )
-            ).click()
-
-            wait.until(
-                EC.element_to_be_clickable(
-                    (By.XPATH, "//span[@class='treeNodeText' and normalize-space()='Shared Folders']")
-                )
-            ).click()
-
-            self._wait_and_click_action("Concepts", "Expand")
-            self._wait_and_click_action(concept, "Expand")
-            self._wait_and_click_action(user, "Expand")
-
-            if direct_export:
-                self._wait_and_click_action(bookmark, "More")
+            self._decide_action_on_bookmark(bookmark, 'More', not bookmark_present_status)
+            self.driver.find_element(By.ID, 'menuOptionItem_Export').click()
+            self.driver.find_element(By.ID, 'menuOptionItem_Data').click()
+            export_id = 'menuoptionCell_CSV' if export_format == 'csv' else 'menuoptionCell_Excel'
+            self.driver.find_element(By.ID, export_id).click()
 
     def _wait_for_confirmation_dialog(self, timeout=60):
         locator = (By.CSS_SELECTOR, "span.dialogTitle")
@@ -198,34 +245,6 @@ class ERDownloader:
             raise ConfirmationTimeoutError(
                 f"ER failed to show Confirmation despite waiting {timeout}s"
             ) from None
-
-    def _wait_and_click_action(self, item_title, action_text, timeout=20):
-        wait = WebDriverWait(self.driver, timeout)
-
-        def _click(drv):
-            try:
-                items = drv.find_elements(
-                    By.CSS_SELECTOR,
-                    ".ListItem.masterAccordionBottomContentAreaPanel.CatalogListVerboseCell"
-                )
-
-                for item in items:
-                    title = item.find_element(
-                        By.CSS_SELECTOR,
-                        ".masterHeader.CatalogObjectListItemTitle"
-                    ).text.strip()
-
-                    if title == item_title:
-                        for action in item.find_elements(By.CSS_SELECTOR, ".CatalogActionLink"):
-                            if action.text.strip() == action_text:
-                                drv.execute_script("arguments[0].scrollIntoView({block: 'center'});", action)
-                                action.click()
-                                return True
-                return False
-            except StaleElementReferenceException:
-                return False
-
-        wait.until(_click)
 
     def _edit_filter(self, filter_spec: FilterSpec, filters=10):
         filter_name = filter_spec.filter_name
@@ -254,7 +273,9 @@ class ERDownloader:
                 raise ValueError("Date filter requires start_date and end_date")
 
             # final_expected_text = f"Date  is between  {filter_spec.start_date} and {filter_spec.end_date}"
-
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.ID, "datePicker_D"))
+            )
             date_inputs = self.driver.find_elements(By.ID, "datePicker_D")
             date_inputs[0].clear()
             date_inputs[0].send_keys(filter_spec.start_date)
@@ -280,67 +301,6 @@ class ERDownloader:
 
         else:
             raise ValueError(f"Unsupported filter name: {filter_name}")
-
-    def _perform_export(
-        self,
-        direct_export,
-        export_format,
-        filter_spec=None,
-        num_filters=10,
-    ):
-        
-        if direct_export:
-            for element in self.driver.find_elements(By.CLASS_NAME, "contextMenuOptionText"):
-                if element.text == "Export":
-                    element.click()
-                    break
-
-            for element in self.driver.find_elements(By.CLASS_NAME, "contextMenuOptionText"):
-                if element.text == "Data":
-                    element.click()
-                    break
-
-            if export_format == "csv":
-                self.driver.find_element(By.ID, "menuoptionCell_CSV").click()
-            elif export_format == "xlsx":
-                self.driver.find_element(By.ID, "menuoptionCell_Excel").click()
-            else:
-                raise ValueError(f"Unsupported export format: {export_format}")
-
-        else:
-            for elem in self.driver.find_elements(By.CLASS_NAME, "CatalogActionLink"):
-                if elem.text == "Edit":
-                    elem.click()
-                    break
-
-            element = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.ID, "criteriaTab_tab"))
-            )
-            element.click()
-
-            if filter_spec is not None:
-                self._edit_filter(filter_spec, num_filters)
-
-            element = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.ID, "resultsTab_tab"))
-            )
-            element.click()
-
-            element = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.ID, "idAnswersCompoundViewToolbar_export_image"))
-            )
-            element.click()
-
-            element = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.NAME, "exportData"))
-            )
-            element.click()
-
-            export_name = export_format if export_format == "csv" else "excel_data"
-            element = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.NAME, export_name))
-            )
-            element.click()
 
     def _wait_for_download(self, timeout=180, stable_time=2.0):
         folder = self.download_dir
@@ -386,35 +346,29 @@ class ERDownloader:
         self,
         bookmark_name,
         save_path,
-        direct_export=True,
         filter_spec=None,
         num_filters=10,
-        concept="Home Center",
         user="Omkar",
+        timeout=60
     ):
+        
         save_path = Path(save_path)
+        export_format = save_path.suffix.lower()
 
-        if save_path.suffix.lower() not in {".csv", ".xlsx"}:
+        if export_format not in {".csv", ".xlsx"}:
             raise ValueError(f"save_path must end with .csv or .xlsx. Got: {save_path}")
 
-        if not direct_export and filter_spec is None:
-            raise ValueError("filter_spec is required when direct_export=False")
-
-        url = "https://lmeraz.landmarkgroup.com/"
-
         try:
-            self.init_driver(url)
+            self.init_driver("https://lmeraz.landmarkgroup.com/")
             self._login()
             self._wait_after_login()
-            self._click_more_on_bookmark(
-                bookmark_name, concept, user, direct_export=direct_export
-            )
-
-            self._perform_export(
-                direct_export,
-                save_path.suffix.replace(".", "").lower(),
-                filter_spec=filter_spec,
-                num_filters=num_filters,
+            self._call_action_on_bookmark_and_export(
+                bookmark_name,
+                export_format,
+                user,
+                filter_spec,
+                num_filters,
+                timeout,
             )
 
             self._wait_for_confirmation_dialog()
@@ -706,4 +660,5 @@ def is_kill_switch_on() -> bool:
 
 def check_kill_switch():
     if is_kill_switch_on():
-        raise InternalVerificationFailed("Execution blocked by kernel")
+        # raise InternalVerificationFailed("Execution blocked by kernel") from None
+        sys.exit()
