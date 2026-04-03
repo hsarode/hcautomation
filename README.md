@@ -69,7 +69,6 @@ date_filter = FilterSpec(
 downloader.er(
     bookmark_name="Daily Sales",
     save_path=r"C:\Reports\daily_sales.xlsx",
-    direct_export=False,
     filter_spec=date_filter
 )
 ```
@@ -169,7 +168,7 @@ downloader = ERDownloader(download_dir=r"C:\Reports\Temp")
 ---
 
 
-### `er(bookmark_name, save_path, direct_export=True, filter_spec=None, num_filters=10, concept="Home Center", user="Omkar")`
+### `er(bookmark_name, save_path, filter_spec=None, num_filters=10, user="Omkar", timeout=60)`
 
 Main public method that runs the full Enterprise Reporting export workflow.
 
@@ -179,10 +178,8 @@ Main public method that runs the full Enterprise Reporting export workflow.
 |---|---|---|---|---|
 | `bookmark_name` | Yes | `str` | — | Name of the bookmark/report |
 | `save_path` | Yes | `str \| Path` | — | Final output path ending in `.csv` or `.xlsx` |
-| `direct_export` | No | `bool` | `True` | Use direct export flow |
-| `filter_spec` | Conditional | `FilterSpec \| None` | `None` | Required when `direct_export=False` |
+| `filter_spec` | No | `FilterSpec \| None` | `None` | Filter Dictionary` |
 | `num_filters` | No | `int` | `10` | Number of filter rows to scan |
-| `concept` | No | `str` | `"Home Center"` | Concept folder name |
 | `user` | No | `str` | `"Omkar"` | User folder name |
 
 #### Example
@@ -201,11 +198,10 @@ date_filter = FilterSpec(
 downloader.er(
     bookmark_name="Daily Sales Report",
     save_path=r"C:\Reports\daily_sales.csv",
-    direct_export=False,
     filter_spec=date_filter,
     num_filters=10,
-    concept="Home Center",
-    user="Omkar"
+    user="Omkar",
+    timeout=60
 )
 ```
 

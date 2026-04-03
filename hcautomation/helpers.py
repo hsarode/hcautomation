@@ -331,10 +331,10 @@ class ERDownloader:
     ):
         
         save_path = Path(save_path)
-        export_format = save_path.suffix.lower()
+        export_format = save_path.suffix.lower().replace('.', '')
 
-        if export_format not in {".csv", ".xlsx"}:
-            raise ValueError(f"save_path must end with .csv or .xlsx. Got: {save_path}")
+        if export_format not in {"csv", "xlsx"}:
+            raise ValueError(f"save_path must end with csv or xlsx. Got: {save_path}")
 
         try:
             self.init_driver("https://lmeraz.landmarkgroup.com/")
