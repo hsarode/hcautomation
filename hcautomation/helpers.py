@@ -141,28 +141,6 @@ class ERDownloader:
                 return True
         return False
 
-    # def _decide_action_on_bookmark(self, bookmark, action, on_catalog_page=False):
-    #     wait = WebDriverWait(self.driver, 20)
-    #     def _get_bookmark(driv):
-    #         for bookmark_row in driv.find_elements(By.CLASS_NAME, 'ListItem'):
-    #             if on_catalog_page:
-    #                 try:
-    #                     bookmark_title = bookmark_row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
-    #                 except NoSuchElementException:
-    #                     continue
-    #             else:
-    #                 bookmark_title = bookmark_row.text.strip().split('\n')[0]
-    #             if bookmark == bookmark_title:
-    #                 if action == 'Find':
-    #                     return True
-    #                 return self._click_catalog_action_link(bookmark_row, action)
-    #     try:
-    #         return wait.until(_get_bookmark)
-    #     except TimeoutException:
-    #         if action == 'Find':
-    #             return False
-    #         raise
-
     def _decide_action_on_bookmark(self, bookmark, action, on_catalog_page=False, timeout=20):
         end_time = time.time() + timeout
         wait_time_done = False
@@ -204,9 +182,9 @@ class ERDownloader:
             self.driver.find_element(By.ID, 'catalog').click()
             catalog_location = self.driver.find_element(By.CLASS_NAME, 'XUIPromptEntry').text.strip() == '/Shared Folders/Concepts/Home Center/Omkar'
             if not catalog_location:
-                self._navigate_catalog('Concepts', 'Expand')
-                self._navigate_catalog('Home Center', 'Expand')
-                self._navigate_catalog(user, 'Expand')
+                self._navigate_catalog('Concepts', 'Expand', timeout)
+                self._navigate_catalog('Home Center', 'Expand', timeout)
+                self._navigate_catalog(user, 'Expand', timeout)
 
         if filter_spec:
             self._decide_action_on_bookmark(bookmark, 'Edit', not bookmark_present_status)
@@ -470,7 +448,7 @@ class Helpers:
         else:
             mail.Display()
 
-    def process_semantic_dumps(path, col_rename_map=None, sheet_name=None, skiprows=2, date_cols=(), numeric_cols=(), errors='raise') -> pd.DataFrame:
+    def process_semantic_dumps(self, path, col_rename_map=None, sheet_name=None, skiprows=2, date_cols=(), numeric_cols=(), errors='raise') -> pd.DataFrame:
         try:
             excel_obj = path if isinstance(path, pd.ExcelFile) else path
             df = pd.read_excel(excel_obj, sheet_name=sheet_name, skiprows=skiprows)
@@ -510,7 +488,7 @@ class Helpers:
                 df = df.dropna(subset=[c])
         return df
 
-    def clean_exit(message: str = "\nPress Ctrl+C to exit...") -> None:
+    def clean_exit(self, message: str = "\nPress Ctrl+C to exit...") -> None:
         print(message)
         try:
             while True:
@@ -518,7 +496,7 @@ class Helpers:
         except KeyboardInterrupt:
             print("\nExiting.")
 
-    def fetch_pl_files(terr:str, 
+    def fetch_pl_files(self, terr:str, 
                     omni_letter:str='O', 
                     pl_columns:Sequence[str]=('skuCode','concept'), 
                     col_rename_map: Mapping[str, str] | None = None,
@@ -590,7 +568,8 @@ class Helpers:
         return df, latest_pl_file
 
     def is_file_updated_today(
-        file_path: str,
+        self,
+        file_path,
         raise_on_fail: bool = True
     ) -> bool:
         """
@@ -600,7 +579,7 @@ class Helpers:
             True if file was modified today, False otherwise
             (only when raise_on_fail=False)
         """
-        if not os.path.isfile(file_path):
+        if not file_path.exists():
             if raise_on_fail:
                 raise FileNotFoundError(f"[ERROR] File not found: {file_path}") from None
             return False
@@ -617,7 +596,7 @@ class Helpers:
 
         return True
 
-    def define_cust_type(df, cust_id='Customer ID'):
+    def define_cust_type(self, df, cust_id='Customer ID'):
         cols = {'Date', 'First Transcation Date', 'Customer ID'}
         if not cols.issubset(df.columns):
             raise KeyError('Date, First Transcation Date', 'Customer ID columns not in df')
@@ -630,7 +609,7 @@ class Helpers:
         df = pd.merge(df, temp[['Customer ID', 'new_repeat']], on=['Customer ID'], how='left', validate='m:1')
         return df
 
-    def get_latest_file(path, typ='c'):
+    def get_latest_file(self, path, typ='c'):
         path = str(path)
         if typ == 'c':
             return max(glob(path), key=os.path.getctime)
