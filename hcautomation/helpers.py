@@ -177,7 +177,7 @@ class ERDownloader:
         wait.until(_click)
 
     def _call_action_on_bookmark_and_export(self, bookmark, export_format, user, filter_spec, num_filters, timeout):
-        bookmark_present_status = self._decide_action_on_bookmark(bookmark, 'Find')
+        bookmark_present_status = self._decide_action_on_bookmark(bookmark, 'Find', timeout=timeout)
         if not bookmark_present_status:
             self.driver.find_element(By.ID, 'catalog').click()
             catalog_location = self.driver.find_element(By.CLASS_NAME, 'XUIPromptEntry').text.strip() == '/Shared Folders/Concepts/Home Center/Omkar'
@@ -187,7 +187,7 @@ class ERDownloader:
                 self._navigate_catalog(user, 'Expand', timeout)
 
         if filter_spec:
-            self._decide_action_on_bookmark(bookmark, 'Edit', not bookmark_present_status)
+            self._decide_action_on_bookmark(bookmark, 'Edit', not bookmark_present_status, timeout)
             self._click(By.ID, "criteriaTab_tab", timeout)
             self._edit_filter(filter_spec, num_filters)
             self._click(By.ID, "resultsTab_tab", timeout)
@@ -196,13 +196,13 @@ class ERDownloader:
             export_name = export_format if export_format == "csv" else "excel_data"
             self._click(By.NAME, export_name, timeout)
         else:
-            self._decide_action_on_bookmark(bookmark, 'More', not bookmark_present_status)
+            self._decide_action_on_bookmark(bookmark, 'More', not bookmark_present_status, timeout)
             self.driver.find_element(By.ID, 'menuOptionItem_Export').click()
             self.driver.find_element(By.ID, 'menuOptionItem_Data').click()
             export_id = 'menuoptionCell_CSV' if export_format == 'csv' else 'menuoptionCell_Excel'
             self.driver.find_element(By.ID, export_id).click()
 
-    def _wait_for_confirmation_dialog(self, timeout=60):
+    def _wait_for_confirmation_dialog(self, timeout):
         locator = (By.CSS_SELECTOR, "span.dialogTitle")
 
         def confirmation_loaded(drv):
@@ -349,7 +349,7 @@ class ERDownloader:
                 timeout,
             )
 
-            self._wait_for_confirmation_dialog()
+            self._wait_for_confirmation_dialog(timeout)
             file_path = self._wait_for_download()
             self._move_dloaded_file(file_path, save_path)
 
