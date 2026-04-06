@@ -17,7 +17,17 @@ dependencies = [
     "rsa",
     "beautifulsoup4",
     "pywin32",
-    "Jinja2"
+    "Jinja2",
+    "openpyxl",
+    "google-api-python-client",
+    "google-auth-oauthlib",
+    "PySide6",
+    "qdarkstyle",
+    "PyYAML",
+    "xlrd",
+    "pyxlsb",
+    "python-dateutil"
+
 ]
 
 [tool.setuptools]

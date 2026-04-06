@@ -37,7 +37,7 @@ class LoginTimeoutError(ERDownloaderError):
     pass
 class BookmarkNotFoundError(ERDownloaderError):
     pass
-class FilterNotFoundError(ERDownloaderError):
+class FileNotUpdatedError(ERDownloaderError):
     pass
 class DownloadTimeoutError(ERDownloaderError):
     pass
@@ -241,7 +241,7 @@ class ERDownloader:
                 break
 
         if index is None:
-            raise FilterNotFoundError(f"Filter not found: {filter_name}")
+            raise FileNotUpdatedError(f"Filter not found: {filter_name}")
 
         selected_filter = self.driver.find_element(By.ID, f"floatcell_hightlightrow{index}_hightlighttable0")
         selected_filter.find_element(By.XPATH, ".//img[@title='Edit Filter']").click()
@@ -567,17 +567,18 @@ class Helpers:
             df = df.rename(columns=col_rename_map)
         return df, latest_pl_file
 
-    def is_file_updated_today(
+    def is_file_updated(
         self,
         file_path,
+        days: int = 0,
         raise_on_fail: bool = True
     ) -> bool:
         """
         Returns
         -------
         bool
-            True if file was modified today, False otherwise
-            (only when raise_on_fail=False)
+            True if file was modified within the last `days` days
+            False otherwise (only when raise_on_fail=False)
         """
         if not file_path.exists():
             if raise_on_fail:
@@ -585,11 +586,12 @@ class Helpers:
             return False
 
         last_modified = date.fromtimestamp(os.path.getmtime(file_path))
+        cutoff_date = date.today() - timedelta(days=days)
 
-        if last_modified != date.today():
+        if last_modified < cutoff_date:
             if raise_on_fail:
-                raise FileNotFoundError(
-                    f"[ERROR] File has not been updated today. "
+                raise FileNotUpdatedError(
+                    f"[ERROR] File not updated in the last {days} day(s). "
                     f"Last modified on: {last_modified}"
                 ) from None
             return False
