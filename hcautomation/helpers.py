@@ -350,7 +350,7 @@ class ERDownloader:
             )
 
             self._wait_for_confirmation_dialog(timeout)
-            file_path = self._wait_for_download()
+            file_path = self._wait_for_download(timeout)
             self._move_dloaded_file(file_path, save_path)
 
         finally:
