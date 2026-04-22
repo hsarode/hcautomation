@@ -463,7 +463,7 @@ class Helpers:
         if 'Territory' in dcs.columns:
             dcs["Territory"] = dcs["Territory"].map(terr_map)
         if dcs_rename_map:
-            df_dcs = df_dcs.rename(columns=dcs_rename_map)
+            dcs = dcs.rename(columns=dcs_rename_map)
 
         return uda, dcs
 
