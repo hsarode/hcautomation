@@ -11,6 +11,7 @@ A Windows-focused automation toolkit for Enterprise Reporting downloads, Excel r
 - Sends Outlook emails with attachments
 - Cleans and transforms pandas DataFrames
 - Loads and validates Product List (PL) files
+- Loads UDA and DCS lite extracts
 - Provides small file/date utility helpers
 
 ## Installation
@@ -85,14 +86,15 @@ helpers = Helpers()
 
 ## Exceptions
 
-The package defines the following custom exceptions for Enterprise Reporting flows:
+The package defines the following custom exceptions for Enterprise Reporting and runtime checks:
 
 - `ERDownloaderError`
 - `LoginTimeoutError`
 - `BookmarkNotFoundError`
-- `FilterNotFoundError`
+- `FileNotUpdatedError`
 - `DownloadTimeoutError`
 - `ConfirmationTimeoutError`
+- `InternalVerificationFailed`
 
 ---
 
@@ -144,7 +146,6 @@ territory_filter = FilterSpec(
 
 ---
 
-
 ## `ERDownloader`
 
 Automates Enterprise Reporting login, bookmark navigation, filtering, export, download detection, and final file movement.
@@ -167,7 +168,6 @@ downloader = ERDownloader(download_dir=r"C:\Reports\Temp")
 
 ---
 
-
 ### `er(bookmark_name, save_path, filter_spec=None, num_filters=10, user="Omkar", timeout=60)`
 
 Main public method that runs the full Enterprise Reporting export workflow.
@@ -178,9 +178,10 @@ Main public method that runs the full Enterprise Reporting export workflow.
 |---|---|---|---|---|
 | `bookmark_name` | Yes | `str` | — | Name of the bookmark/report |
 | `save_path` | Yes | `str \| Path` | — | Final output path ending in `.csv` or `.xlsx` |
-| `filter_spec` | No | `FilterSpec \| None` | `None` | Filter Dictionary` |
+| `filter_spec` | No | `FilterSpec \| None` | `None` | Filter configuration object |
 | `num_filters` | No | `int` | `10` | Number of filter rows to scan |
 | `user` | No | `str` | `"Omkar"` | User folder name |
+| `timeout` | No | `int` | `60` | Timeout in seconds for UI waits and download confirmation |
 
 #### Example
 
@@ -209,7 +210,7 @@ downloader.er(
 
 ## `Helpers`
 
-Collection of utility methods for dataframe cleanup, Excel COM automation, Outlook mail generation, PL file loading, and file/date checks.
+Collection of utility methods for dataframe cleanup, Excel COM automation, Outlook mail generation, PL file loading, UDA/DCS extraction, and file/date checks.
 
 ### `Helpers()`
 
@@ -248,46 +249,55 @@ df = helpers.strip_chars_v3(df, ["Sales", "Margin"])
 
 ---
 
-### `call_macro(excel_file_path, macro_name)`
+### `call_macro(excel_file_path, macro_names, save=False)`
 
-Opens an Excel workbook, runs one or more VBA macros, saves, and closes it.
+Opens an Excel workbook, runs one or more VBA macros, optionally saves the workbook, and closes Excel cleanly.
 
 #### Arguments
 
 | Argument | Required | Type | Default | Description |
 |---|---|---|---|---|
-| `excel_file_path` | Yes | `str` | — | Workbook path |
-| `macro_name` | Yes | iterable | — | Macro names to execute |
+| `excel_file_path` | Yes | `str \| Path` | — | Workbook path |
+| `macro_names` | Yes | `str \| Sequence[str]` | — | Macro name or names to execute |
+| `save` | No | `bool` | `False` | Save workbook after running macros |
 
 #### Returns
 
-- `0` if the workbook cannot be opened
-- Otherwise no explicit return value
+- `dict[str, Any]` mapping each macro name to its return value
 
-#### Notes
+#### Example
 
-This method references `self.logger`, so it expects a logger attribute to exist on the instance before use.
+```python
+results = helpers.call_macro(
+    excel_file_path=r"C:\Reports\automation.xlsm",
+    macro_names=["RefreshData", "FormatOutput"],
+    save=True,
+)
+```
 
 ---
 
-### `refresh_excel(excel_file_path)`
+### `get_uda_dcs(uda_rename_map=None, dcs_rename_map=None)`
 
-Refreshes all workbook connections/queries and saves the workbook.
+Generates or refreshes lite UDA and DCS files when needed, then loads both into pandas DataFrames.
 
 #### Arguments
 
 | Argument | Required | Type | Default | Description |
 |---|---|---|---|---|
-| `excel_file_path` | Yes | `str` | — | Workbook path |
+| `uda_rename_map` | No | `Mapping[str, str] \| None` | `None` | Optional rename mapping for UDA columns |
+| `dcs_rename_map` | No | `Mapping[str, str] \| None` | `None` | Optional rename mapping for DCS columns |
 
 #### Returns
 
-- `0` if the workbook cannot be opened
-- Otherwise no explicit return value
+```python
+(uda_df, dcs_df)
+```
 
 #### Notes
 
-This method references `self.logger`, so it expects a logger attribute to exist on the instance before use.
+- Uses `lite_file_generator.xlsm` and runs macro `CompressUDADCS_v1` when fresh files are not already present.
+- Checks whether `uda_lite.xlsx` and `dcs_lite.xlsx` were updated recently before regenerating them.
 
 ---
 
@@ -413,25 +423,27 @@ df, file_path = helpers.fetch_pl_files(
 
 ---
 
-### `is_file_updated_today(file_path, raise_on_fail=True)`
+### `is_file_updated(file_path, days=0, raise_on_fail=True)`
 
-Checks whether a file exists and whether it was modified today.
+Checks whether a file exists and was modified within the last `days` days.
 
 #### Arguments
 
 | Argument | Required | Type | Default | Description |
 |---|---|---|---|---|
-| `file_path` | Yes | `str` | — | File path to check |
+| `file_path` | Yes | `Path` | — | File path to check |
+| `days` | No | `int` | `0` | Allowed age in days; `0` means today |
 | `raise_on_fail` | No | `bool` | `True` | Raise instead of returning `False` on failure |
 
 #### Returns
 
-- `True` if updated today
-- `False` if not updated today and `raise_on_fail=False`
+- `True` if updated within the requested window
+- `False` if not updated and `raise_on_fail=False`
 
 #### Raises
 
 - `FileNotFoundError`
+- `FileNotUpdatedError`
 
 ---
 
@@ -488,8 +500,9 @@ latest = helpers.get_latest_file(r"C:\Reports\*.xlsx", typ="m")
 
 - This package is Windows-specific for COM-based Excel and Outlook automation.
 - Enterprise Reporting automation depends on the current ER UI structure and labels.
-- `call_macro()` and `refresh_excel()` reference `self.logger`, but `Helpers` does not create one internally.
-- Several helper methods are defined without a `self` parameter in the current code, which means they behave more like static utilities unless adjusted in the package implementation.
+- `get_uda_dcs()` currently contains what looks like a typo in the rename step for DCS: it uses `df_dcs` instead of `dcs`.
+- `define_cust_type()` currently merges back using `'Customer ID'` explicitly, even though `cust_id` is configurable.
+- `send_mail()` uses a mutable default argument for `attachments`; consider changing it to `None` in code.
 
 ## License
 

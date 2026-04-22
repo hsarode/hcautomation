@@ -1,3 +1,4 @@
+from __future__ import annotations
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.options import Options
@@ -381,39 +382,90 @@ class Helpers:
             return df_old
         else:
             return df
-        
-    def call_macro(self, excel_file_path, macro_name):
-        xlapp = win32com.client.DispatchEx("Excel.Application")
-        filename = os.path.basename(excel_file_path)
-        try:
-            wb = xlapp.Workbooks.Open(excel_file_path)
-        except:
-            xlapp.Application.Quit()
-            return 0
-        xlapp.DisplayAlerts = False
-        for macro in macro_name:
-            xlapp.Run(macro)
-        wb.Save()
-        wb.Close()
-        xlapp.Application.Quit()
+            
+    def call_macro(self, excel_file_path, macro_names, save=False):
+        pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
+        excel = None
+        wb = None
 
-    def refresh_excel(self, excel_file_path):
-        pythoncom.CoInitialize()  # <-- init COM for this thread
-        xlapp = win32com.client.DispatchEx("Excel.Application")
-        filename = os.path.basename(excel_file_path)
         try:
-            wb = xlapp.Workbooks.Open(excel_file_path)
-        except:
-            xlapp.Application.Quit()
-            return 0
-        xlapp.DisplayAlerts = False
-        wb.RefreshAll()
-        xlapp.CalculateUntilAsyncQueriesDone()
-        wb.Save()
-        wb.Close()
-        xlapp.Quit()
-        xlapp = None
-        del xlapp
+            if isinstance(macro_names, str):
+                macro_names = [macro_names]
+
+            excel = win32com.client.DispatchEx("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+            excel.ScreenUpdating = False
+            excel.EnableEvents = False
+
+            wb = excel.Workbooks.Open(str(excel_file_path), ReadOnly=False, UpdateLinks=0)
+
+            results = {}
+            for macro_name in macro_names:
+                results[macro_name] = excel.Application.Run(f"'{wb.Name}'!{macro_name}")
+
+            if save:
+                wb.Save()
+
+            return results
+
+        finally:
+            try:
+                if wb is not None:
+                    wb.Close(SaveChanges=False)
+            except Exception:
+                pass
+
+            try:
+                if excel is not None:
+                    excel.Quit()
+            except Exception:
+                pass
+
+            pythoncom.CoUninitialize()
+
+    def get_uda_dcs(self, uda_rename_map=None, dcs_rename_map=None):
+        target_dir = Path.home() / ".hcautomation"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        uda_path = target_dir / 'uda_lite.xlsx'
+        dcs_path = target_dir / 'dcs_lite.xlsx'
+
+        if not self.is_file_updated(uda_path, days=1, raise_on_fail=False) and not self.is_file_updated(dcs_path, days=1, raise_on_fail=False):
+            excel_file_path = target_dir / 'lite_file_generator.xlsm'
+
+            if not excel_file_path.exists():
+                src = resources.files("hcautomation").joinpath("lite_file_generator.xlsm")
+                with src.open("rb") as fsrc, excel_file_path.open("wb") as fdst:
+                    shutil.copyfileobj(fsrc, fdst)
+            
+            result = self.call_macro(excel_file_path, 'CompressUDADCS_v1')
+            results_meaning = {    
+                    0: 'Success',
+                    1: 'UDA folder/file not found',
+                    2: 'DCS base path not found',
+                    3: 'DCS month folder not found',
+                    4: 'DCS subfolder/file not found',
+                    9: 'Unexpected error',
+                }
+            print(f'UDA & DCS generated succesfully | Status Code: {results_meaning[result['CompressUDADCS_v1']]}')
+
+        uda = pd.read_excel(uda_path)
+        if '' in uda.columns:
+            uda = uda[pd.to_numeric(uda['SKU'], errors='coerce').notna()].copy()
+        uda.columns = uda.columns.str.strip()
+        if uda_rename_map: 
+            uda = uda.rename(columns=uda_rename_map)
+
+        dcs = pd.read_excel(dcs_path)
+        if 'Item Code' in dcs.columns:
+            dcs = dcs[pd.to_numeric(dcs['Item Code'], errors='coerce').notna()].copy()
+        terr_map = {'Qatar': 'QAT', 'UAE': 'UAE', 'Jebel Ali': 'UAE', 'Kuwait': 'KWT','KSA': 'KSA', 'Oman': 'OMA', 'Bahrain': 'BAH', 'Egypt': 'EGP', 'Lebanon': 'LEB'}
+        if 'Territory' in dcs.columns:
+            dcs["Territory"] = dcs["Territory"].map(terr_map)
+        if dcs_rename_map:
+            df_dcs = df_dcs.rename(columns=dcs_rename_map)
+
+        return uda, dcs
 
     def refresh_excel_safe(self, excel_file_path):
         pythoncom.CoInitialize()  # <-- init COM for this thread
