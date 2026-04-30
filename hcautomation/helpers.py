@@ -549,7 +549,6 @@ class Helpers:
             print("\nExiting.")
 
     def fetch_pl_files(self, terr:str, 
-                    omni_letter:str='O', 
                     pl_columns:Sequence[str]=('skuCode','concept'), 
                     col_rename_map: Mapping[str, str] | None = None,
                     marketplace:bool=False, 
@@ -575,15 +574,15 @@ class Helpers:
         last_month = (datetime.strptime(year_month + "01", "%Y%m%d") - timedelta(days=1)).strftime('%Y%m')
 
         if fetch_last_month:
-            pl_path = f"{omni_letter}:\\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{last_month}"
+            pl_path = rf"\\aetcmhcfssprd11\OMNI Channel\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{last_month}"
         else:
-            pl_path = f"{omni_letter}:\\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{year_month}"
+            pl_path = rf"\\aetcmhcfssprd11\OMNI Channel\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{year_month}"
         pl_files = glob(os.path.join(pl_path, "*.csv"))
 
         # Roll back to previous month if needed
         if not pl_files and not fetch_last_month:
             print("[WARN] Current month's PL is not available, fetching last month's")
-            pl_path = f"{omni_letter}:\\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{last_month}"
+            pl_path = rf"\\aetcmhcfssprd11\OMNI Channel\06. Raw Data\\02. Product List Daily\\{terr_modified}\\{last_month}"
             pl_files = glob(os.path.join(pl_path, "*.csv"))
         elif not pl_files:
             raise ValueError("fetch_last_month arguement was set True while calling the function. Last month's PL not available") from None
