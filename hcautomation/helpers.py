@@ -150,18 +150,21 @@ class ERDownloader:
                 if 'Analysis and Interactive Reporting' in bookmark_row.text:
                     wait_time_done = True
 
-        for bookmark_row in self.driver.find_elements(By.CLASS_NAME, 'ListItem'):
-            if on_catalog_page:
-                try:
-                    bookmark_title = bookmark_row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
-                except NoSuchElementException:
-                    continue
-            else:
-                bookmark_title = bookmark_row.text.strip().split('\n')[0]
-            if bookmark == bookmark_title:
-                if action == 'Find':
-                    return True
-                return self._click_catalog_action_link(bookmark_row, action)
+            for bookmark_row in self.driver.find_elements(By.CLASS_NAME, 'ListItem'):
+                if on_catalog_page:
+                    try:
+                        bookmark_title = bookmark_row.find_element(By.CSS_SELECTOR, '.masterHeader.CatalogObjectListItemTitle').text.strip()
+                        print(bookmark_title)
+                    except NoSuchElementException:
+                        print('Exception while finding bookmark title')
+                        continue
+                else:
+                    bookmark_title = bookmark_row.text.strip().split('\n')[0]
+                    print(bookmark_title)
+                if bookmark == bookmark_title:
+                    if action == 'Find':
+                        return True
+                    return self._click_catalog_action_link(bookmark_row, action)
         return False
 
     def _navigate_catalog(self, bookmark, action, timeout):
@@ -179,6 +182,7 @@ class ERDownloader:
 
     def _call_action_on_bookmark_and_export(self, bookmark, export_format, user, filter_spec, num_filters, timeout):
         bookmark_present_status = self._decide_action_on_bookmark(bookmark, 'Find', timeout=timeout)
+        # print(bookmark_present_status)
         if not bookmark_present_status:
             self.driver.find_element(By.ID, 'catalog').click()
             catalog_location = self.driver.find_element(By.CLASS_NAME, 'XUIPromptEntry').text.strip() == '/Shared Folders/Concepts/Home Center/Omkar'
@@ -551,7 +555,8 @@ class Helpers:
     def fetch_pl_files(self, terr:str, 
                     pl_columns:Sequence[str]=('skuCode','concept'), 
                     col_rename_map: Mapping[str, str] | None = None,
-                    marketplace:bool=False, 
+                    marketplace:bool=False,
+                    babyshop:bool=False,
                     dtype_dict:Mapping[str,str] | None = None,
                     fetch_last_month:bool=False
                     ) -> pd.DataFrame:
@@ -565,9 +570,12 @@ class Helpers:
 
         if terr not in terr_map:
             raise ValueError(f"Invalid territory code: {terr}") from None
-
+        if marketplace and babyshop:
+            raise ValueError('Fetch PL set true for both Marketplace & Babyshop. Please only set one and run the function again for the other')
+        
         terr = terr_map[terr]
         terr_modified = f"{terr}-Marketplace" if marketplace else terr
+        terr_modified = f"{terr}-Babyshop" if babyshop else terr_modified
 
         today_str = date.today().strftime('%Y%m%d')
         year_month = today_str[:6]

@@ -397,6 +397,7 @@ Fetches the latest Product List file for a territory, with fallback to the previ
 | `pl_columns` | No | `Sequence[str]` | `('skuCode', 'concept')` | Columns to read from the CSV |
 | `col_rename_map` | No | `Mapping[str, str] \| None` | `None` | Optional rename mapping |
 | `marketplace` | No | `bool` | `False` | Use marketplace PL path if `True` |
+| `babyshop` | No | `bool` | `False` | Use babyshop PL path if `True` |
 | `dtype_dict` | No | `Mapping[str, str] \| None` | `None` | Optional dtype mapping for `read_csv` |
 | `fetch_last_month` | No | `bool` | `False` | Force previous-month lookup |
 
