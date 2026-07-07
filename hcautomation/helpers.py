@@ -12,6 +12,7 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 
+import warnings
 import sys
 import rsa
 import pandas as pd
@@ -599,7 +600,7 @@ class Helpers:
             raise FileNotFoundError(f"[ERROR] No PL files found for territory for current & last month: {terr_modified}") from None
 
         mandatory_cols = ["skuCode", "concept"]
-        user_defined_pl_columns = pl_columns + ['Order Location', 'isMP']
+        user_defined_pl_columns = pl_columns + ['Order Location', 'isMP', 'Concept']
         pl_columns = set(pl_columns) | set(mandatory_cols)
 
         latest_pl_file = max(pl_files, key=os.path.getmtime)
@@ -618,6 +619,12 @@ class Helpers:
         results = ['BS', 'HC']
         df['Concept'] = np.select(conds, results, 'MP')
         df['isMP'] = 'MP' if marketplace else 'HC'
+        # Remove isMP from user_defined_pl_columns as well
+        warnings.warn(
+            "isHC column will be deprecated in coming releases, use 'Concept' column for identification between HC, MP & BS",
+            category=DeprecationWarning,
+            stacklevel=2
+        )
         df = df.drop_duplicates(subset=['skuCode'])
         if terr == 'UAE':
             df = df[df['concept'] != 'OTATH']
