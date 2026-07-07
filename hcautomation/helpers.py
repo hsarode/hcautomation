@@ -613,6 +613,10 @@ class Helpers:
         df['skuCode'] = pd.to_numeric(df['skuCode']).astype('Int64')
         print(f"{loaded_rows - len(df)} Rows removed due to invalid SKUs")
         df['Order Location'] = rev_terr_map[terr]
+
+        conds = [df['concept'] == 'BABYSHOP', df['concept'] == 'HOMECENTRE']
+        results = ['BS', 'HC']
+        df['Concept'] = np.select(conds, results, 'MP')
         df['isMP'] = 'MP' if marketplace else 'HC'
         df = df.drop_duplicates(subset=['skuCode'])
         if terr == 'UAE':
