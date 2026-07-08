@@ -28,6 +28,7 @@ from typing import Mapping, Sequence, Optional, Union
 from pandas.api.types import is_datetime64_ns_dtype
 from dataclasses import dataclass
 import win32com.client
+import win32wnet
 import pythoncom
 
 from importlib import resources
@@ -689,6 +690,17 @@ class Helpers:
             return max(glob(path), key=os.path.getmtime)
         else:
             raise ValueError(f'[ERROR] {typ} value provided as type. Allowed values are c=createdTime, m=modifiedTime')
+    
+    def get_drive_letter(self, drv_name):
+        for drv_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            try:
+                remote_name = win32wnet.WNetGetConnection(drv_letter + ":")
+                if drv_name in remote_name:
+                    return drv_letter
+            except:
+                pass
+        return 'Drive not found'
+
         
 class InternalVerificationFailed(Exception):
     """Raised when global kill switch is enabled"""
