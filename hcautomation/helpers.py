@@ -455,14 +455,14 @@ class Helpers:
                 }
             print(f'UDA & DCS generated succesfully | Status Code: {results_meaning[result['CompressUDADCS_v1']]}')
 
-        uda = pd.read_excel(uda_path)
+        uda = pd.read_excel(uda_path, engine="calamine")
         if '' in uda.columns:
             uda = uda[pd.to_numeric(uda['SKU'], errors='coerce').notna()].copy()
         uda.columns = uda.columns.str.strip()
         if uda_rename_map: 
             uda = uda.rename(columns=uda_rename_map)
 
-        dcs = pd.read_excel(dcs_path)
+        dcs = pd.read_excel(dcs_path, engine="calamine")
         if 'Item Code' in dcs.columns:
             dcs = dcs[pd.to_numeric(dcs['Item Code'], errors='coerce').notna()].copy()
         terr_map = {'Qatar': 'QAT', 'UAE': 'UAE', 'Jebel Ali': 'UAE', 'Kuwait': 'KWT','KSA': 'KSA', 'Oman': 'OMA', 'Bahrain': 'BAH', 'Egypt': 'EGP', 'Lebanon': 'LEB'}
@@ -509,7 +509,7 @@ class Helpers:
     def process_semantic_dumps(self, path, col_rename_map=None, sheet_name=None, skiprows=2, date_cols=(), numeric_cols=(), errors='raise') -> pd.DataFrame:
         try:
             excel_obj = path if isinstance(path, pd.ExcelFile) else path
-            df = pd.read_excel(excel_obj, sheet_name=sheet_name, skiprows=skiprows)
+            df = pd.read_excel(excel_obj, sheet_name=sheet_name, skiprows=skiprows, engine="calamine")
         except PermissionError:
             return None
 
@@ -606,7 +606,7 @@ class Helpers:
 
         latest_pl_file = max(pl_files, key=os.path.getmtime)
         print(f"[INFO] Found PL file: {os.path.basename(latest_pl_file)} | ", end="")
-        df = pd.read_csv(latest_pl_file, dtype=dtype_dict, usecols=pl_columns)
+        df = pd.read_csv(latest_pl_file, dtype=dtype_dict, usecols=pl_columns, engine="calamine")
         loaded_rows = len(df)
         
         if "createdTime" in df.columns:
