@@ -606,7 +606,7 @@ class Helpers:
 
         latest_pl_file = max(pl_files, key=os.path.getmtime)
         print(f"[INFO] Found PL file: {os.path.basename(latest_pl_file)} | ", end="")
-        df = pd.read_csv(latest_pl_file, dtype=dtype_dict, usecols=pl_columns, engine="calamine")
+        df = pd.read_csv(latest_pl_file, dtype=dtype_dict, usecols=pl_columns)
         loaded_rows = len(df)
         
         if "createdTime" in df.columns:
